@@ -10,7 +10,6 @@ To install the library, use the following command:
 go get github.com/datamango-uk/montecarlo
 ```
 
-
 ## Usage
 
 ### Estimating the Value of Pi
@@ -21,7 +20,6 @@ The following example demonstrates how to use the Monte Carlo simulation to esti
 package main
 
 import (
-    "math"
     "github.com/datamango-uk/montecarlo"
 )
 
@@ -59,7 +57,6 @@ The following example demonstrates how to use the Monte Carlo simulation to pred
 package main
 
 import (
-    "fmt"
     "github.com/datamango-uk/montecarlo"
 )
 
@@ -90,14 +87,12 @@ func main() {
 }
 ```
 
-
 ### Running multiple simulations
 
 ```go
 package main
 
 import (
-    "fmt"
     "github.com/datamango-uk/montecarlo"
 )
 
