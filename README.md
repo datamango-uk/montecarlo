@@ -54,14 +54,6 @@ func main() {
 The following example demonstrates how to use the Monte Carlo simulation to predict the value of a portfolio based on daily returns.
 
 ```go
-package main
-
-import (
-    "fmt"
-
-    "github.com/datamango-uk/montecarlo"
-)
-
 // This function simulates the daily returns of a portfolio over a given number of days.
 // It uses a normal distribution to generate daily returns based on the mean and standard deviation provided.
 // The portfolio value is updated daily and the final value is returned.
