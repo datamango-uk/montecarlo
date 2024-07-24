@@ -5,40 +5,86 @@ import (
 	"sync"
 )
 
+const (
+	defaultIterations = 100
+	defaultWorkers    = 50
+)
+
 // RunFunc is a function type that defines the operation to be performed in each iteration of the simulation.
-type RunFunc func(inputValues map[string]float64) float64
+type Runner interface {
+	Run(map[string]float64) float64
+}
+
+// Implements Runner
+type RunFunc func(map[string]float64) float64
+
+func (f RunFunc) Run(i map[string]float64) float64 {
+	return f(i)
+}
 
 // Simulation represents a Monte Carlo simulation.
 type Simulation struct {
-	Iterations  int
-	InputValues map[string]float64
-	RunFunc     RunFunc
-	Workers     int
+	Iterations int
+	Runner     Runner
+	Workers    int
 }
 
-// Worker function
-func (s *Simulation) worker(taskChan <-chan struct{}, resultsChan chan<- float64, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for range taskChan {
-		resultsChan <- s.RunFunc(s.InputValues)
+func New(iterations, workers int, runFunc Runner) *Simulation {
+	return &Simulation{
+		Iterations: iterations,
+		Workers:    workers,
+		Runner:     runFunc,
 	}
 }
 
-// Run executes the simulation and returns the results.
-func (s *Simulation) Run() []float64 {
+// Run executes the simulation and returns a summary.
+func (s *Simulation) Run(input map[string]float64) Summary {
+	results := s.execute(input)
+	return Summary{
+		Results:     results,
+		Stats:       Stats(results),
+		InputValues: input,
+	}
+}
+
+// RunMultiple executes the simulation for each map of inputs provided.
+func (s *Simulation) RunMultiple(inputs ...map[string]float64) []Summary {
+	results := make([]Summary, len(inputs))
+	var wg sync.WaitGroup
+	for i := range inputs {
+		wg.Add(1)
+		go func(idx int, input map[string]float64) {
+			defer wg.Done()
+			r := s.Run(input)
+			results[idx] = r
+		}(i, inputs[i])
+	}
+	wg.Wait()
+	return results
+}
+
+// exeucte runs the core part of the simulation using a worker pool, it is not responsible for calculatins statistics,
+// rather just the raw []float64 results.
+func (s *Simulation) execute(input map[string]float64) []float64 {
 	if s.Workers == 0 {
-		s.Workers = 100
+		s.Workers = defaultWorkers
+	}
+	if s.Iterations == 0 {
+		s.Iterations = defaultIterations
 	}
 	taskChan := make(chan struct{})
 	resultsChan := make(chan float64, s.Iterations)
-
 	// Start workers
 	var wg sync.WaitGroup
 	for i := 0; i < s.Workers; i++ {
 		wg.Add(1)
-		go s.worker(taskChan, resultsChan, &wg)
+		go func() {
+			defer wg.Done()
+			for range taskChan {
+				resultsChan <- s.Runner.Run(input)
+			}
+		}()
 	}
-
 	// Send tasks
 	go func() {
 		for i := 0; i < s.Iterations; i++ {
@@ -46,7 +92,6 @@ func (s *Simulation) Run() []float64 {
 		}
 		close(taskChan)
 	}()
-
 	// Collect results
 	var results = make([]float64, s.Iterations)
 	for i := 0; i < s.Iterations; i++ {
@@ -54,8 +99,14 @@ func (s *Simulation) Run() []float64 {
 	}
 	wg.Wait()
 	close(resultsChan)
-
 	return results
+}
+
+// StatsResults holds the results and statistics of a single simulation run.
+type Summary struct {
+	Results     []float64
+	Stats       Statistics
+	InputValues map[string]float64
 }
 
 // Stats represents the statistical results of a simulation.
@@ -66,7 +117,7 @@ type Statistics struct {
 	Max               float64
 }
 
-// Stats calculates and returns the statistics from a slice of float64 results.
+// Stats calculates and returns Statistics from a slice of float64.
 func Stats(results []float64) Statistics {
 	var (
 		stats Statistics
@@ -94,28 +145,4 @@ func Stats(results []float64) Statistics {
 	stats.StandardDeviation = math.Sqrt((sumSq / l) - (stats.Mean * stats.Mean))
 
 	return stats
-}
-
-// StatsResults holds the results and statistics of a single simulation run.
-type StatsResults struct {
-	Results []float64
-	Stats   Statistics
-}
-
-// RunMultiple executes the simulation multiple times and returns the results and statistics for each run.
-func (s *Simulation) RunMultiple(n int) []StatsResults {
-	results := make([]StatsResults, n)
-	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			r := s.Run()
-			results[idx].Results = r
-			results[idx].Stats = Stats(r)
-		}(i)
-	}
-	wg.Wait()
-
-	return results
 }
