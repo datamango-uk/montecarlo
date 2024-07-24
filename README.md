@@ -24,19 +24,19 @@ import (
 )
 
 func main() {
-	simulation := montecarlo.New(
-		100000, // Iterations
-		200,    // Worker pool size
-		montecarlo.RunFunc(func(_ map[string]float64) float64 {
-			x := montecarlo.UniformFloat64(0, 1)
-			y := montecarlo.UniformFloat64(0, 1)
-			if x*x+y*y <= 1 {
-				return 1
-			}
-			return 0
-		}),
-	)
-	summary := simulation.Run(nil) // This simulation doesnt require any inputs, so we pass nil
+    simulation := montecarlo.New(
+        100000, // Iterations
+        200,    // Worker pool size
+        montecarlo.RunFunc(func(_ map[string]float64) float64 {
+            x := montecarlo.UniformFloat64(0, 1)
+            y := montecarlo.UniformFloat64(0, 1)
+            if x*x+y*y <= 1 {
+                return 1
+            }
+            return 0
+        }),
+    )
+    summary := simulation.Run(nil) // This simulation doesnt require any inputs, so we pass nil
 
 
     // Using the results to estimate the value of Pi
@@ -62,30 +62,32 @@ import (
     "github.com/datamango-uk/montecarlo"
 )
 
+// This function simulates the daily returns of a portfolio over a given number of days.
+// It uses a normal distribution to generate daily returns based on the mean and standard deviation provided.
+// The portfolio value is updated daily and the final value is returned.
+func estimatePortfolio(input map[string]float64) float64 {
+    portfolioValue := input["initialValue"]
+    meanReturn := input["meanReturn"]
+    stddevReturn := input["stddevReturn"]
+    days := int(input["days"])
+    for i := 0; i < days; i++ {
+        dailyReturn := montecarlo.NormalFloat64(meanReturn, stddevReturn)
+        portfolioValue *= (1 + dailyReturn)
+    }
+    return portfolioValue
+}
+
 func main() {
-	summary := montecarlo.New(
-		100000, // Iterations
-		200,    // Worker pool size
-		montecarlo.RunFunc(func(input map[string]float64) float64 {
-			// This function simulates the daily returns of a portfolio over a given number of days.
-			// It uses a normal distribution to generate daily returns based on the mean and standard deviation provided.
-			// The portfolio value is updated daily and the final value is returned.
-			portfolioValue := input["initialValue"]
-			meanReturn := input["meanReturn"]
-			stddevReturn := input["stddevReturn"]
-			days := int(input["days"])
-			for i := 0; i < days; i++ {
-				dailyReturn := montecarlo.NormalFloat64(meanReturn, stddevReturn)
-				portfolioValue *= (1 + dailyReturn)
-			}
-			return portfolioValue
-		}),
-	).Run(map[string]float64{
-		"initialValue": 10000.0,
-		"meanReturn":   0.0005,
-		"stddevReturn": 0.01,
-		"days":         365,
-	})
+    summary := montecarlo.New(
+        100000, // Iterations
+        200,    // Worker pool size
+        montecarlo.RunFunc(estimatePortfolio),
+    ).Run(map[string]float64{
+        "initialValue": 10000.0,
+        "meanReturn":   0.0005,
+        "stddevReturn": 0.01,
+        "days":         365,
+    })
 
     fmt.Println(summary.Stats)
     // {Mean:12036.539859964061 StandardDeviation:2279.4204494720975 Min:6481.218067148653 Max:23742.014047666456}
@@ -97,30 +99,22 @@ func main() {
 If you want to run a simulation multiple times with different inputs, you can use the `RunMultiple` method.
 
 ```go
-package main
-
-import (
-    "github.com/datamango-uk/montecarlo"
-)
-
 func main() {
-    simulation := montecarlo.New(...)
-
+    simulation := montecarlo.New(100000, 200, montecarlo.RunFunc(estimatePortfolio))
     inputs := []map[string]float64{
-		{
-            "initialValue": 10000.0,
+        {
+            "initialValue": 100.0,
             "meanReturn":   0.0005,
             "stddevReturn": 0.01,
             "days":         365,
         },
         {
-            "initialValue": 10000.0,
+            "initialValue": 100.0,
             "meanReturn":   0.00010,
             "stddevReturn": 0.02,
             "days":         200,
         },
-	}
-
+    }
     simulation.RunMultiple(inputs...)
     // []Summary{
     //    {Results: [...] Stats:{} InputValues: {"initialValue": 10000.0, "meanReturn": 0.0005, "stddevReturn": 0.01, "days": 365}},
